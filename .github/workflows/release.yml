@@ -23,16 +23,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Convert Repository Owner to Lowercase
+        id: lower_owner
+        uses: actions/github-script@v6
+        with:
+          script: |
+            return { owner: context.repo.owner.toLowerCase() }
+
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v4
         with:
           context: .
           file: ./Dockerfile
           push: true
-          # Specify the target platforms here:
           platforms: linux/amd64,linux/arm64
-          # Automatically uses the repository name from GitHub context:
-          tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
+          # Use the lowercased owner from the previous step
+          tags: ghcr.io/${{ steps.lower_owner.outputs.owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
 
   create_release:
     name: Create GitHub Release
