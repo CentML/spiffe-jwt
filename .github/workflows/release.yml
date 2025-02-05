@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-push:
-    name: Build and Push Multi-Platform Docker Image to GHCR
+    name: Build and Push Docker Image to GHCR
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -23,12 +23,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Convert Repository Owner to Lowercase
-        id: lower_owner
-        uses: actions/github-script@v6
-        with:
-          script: |
-            return { owner: context.repo.owner.toLowerCase() }
+      - name: Set lowercase repository owner
+        id: owner
+        run: |
+          # Convert the repository owner to lowercase and save it as an output variable.
+          echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v4
@@ -37,8 +36,8 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          # Use the lowercased owner from the previous step
-          tags: ghcr.io/${{ steps.lower_owner.outputs.owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
+          # Tag the image using the lowercased owner and repository name.
+          tags: ghcr.io/${{ steps.owner.outputs.owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
 
   create_release:
     name: Create GitHub Release
