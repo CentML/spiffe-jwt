@@ -17,16 +17,17 @@ import (
 )
 
 // SpiffeJWT periodically refreshes a JWT SVID from the SPIFFE agent and writes it to a file. If it
-// fails to fetch the JWT SVID, it deletes its own pod in order to force the pod to be restarted by its 
+// fails to fetch the JWT SVID, it deletes its own pod in order to force the pod to be restarted by its
 // owner (e.g. a deployment controller).
 type SpiffeJWT struct {
-	HealthPort        string `env:"HEALTH_PORT" help:"Port to listen for health checks." default:"8080"`
-	JWTAudience       string `env:"JWT_AUDIENCE" help:"Audience of the JWT." required:""`
-	JWTFileName       string `env:"JWT_FILE_NAME" help:"Name of the file to write the JWT SVID to." required:""`
-	PodName           string `env:"POD_NAME" help:"Name of the pod." required:""`
-	PodNamespace      string `env:"POD_NAMESPACE" help:"Namespace of the pod. required:"`
-	SpiffeAgentSocket string `env:"SPIFFE_AGENT_SOCKET" help:"File name of the SPIFFE agent socket" required:""`
-	Started           bool
+	HealthPort              string `env:"HEALTH_PORT" help:"Port to listen for health checks." default:"8080"`
+	JWTAudience             string `env:"JWT_AUDIENCE" help:"Audience of the JWT." required:""`
+	JWTFileName             string `env:"JWT_FILE_NAME" help:"Name of the file to write the JWT SVID to." required:""`
+	PodName                 string `env:"POD_NAME" help:"Name of the pod." required:""`
+	PodNamespace            string `env:"POD_NAMESPACE" help:"Namespace of the pod. required:"`
+	SpiffeAgentSocket       string `env:"SPIFFE_AGENT_SOCKET" help:"File name of the SPIFFE agent socket" required:""`
+	RefreshIntervalOverride int    `env:"REFRESH_INTERVAL_OVERRIDE" help:"Override the default refresh interval in seconds."`
+	Started                 bool
 }
 
 func main() {
@@ -145,7 +146,13 @@ func (s *SpiffeJWT) deleteOwnPod() {
 	time.Sleep(60 * time.Second)
 }
 
-func getRefreshInterval(svid *jwtsvid.SVID) time.Duration {
+func (s *SpiffeJWT) getRefreshInterval(svid *jwtsvid.SVID) time.Duration {
+	// if the refresh interval override is set, use it
+	if s.RefreshIntervalOverride != 0 {
+		return time.Duration(s.RefreshIntervalOverride) * time.Second
+	}
+
+	// otherwise, return half the time until the SVID expires
 	return time.Until(svid.Expiry)/2 + time.Second
 }
 
