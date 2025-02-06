@@ -11,9 +11,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 // SpiffeJWT periodically refreshes a JWT SVID from the SPIFFE agent and writes it to a file. If it
@@ -23,8 +20,6 @@ type SpiffeJWT struct {
 	HealthPort              string `env:"HEALTH_PORT" help:"Port to listen for health checks." default:"8080"`
 	JWTAudience             string `env:"JWT_AUDIENCE" help:"Audience of the JWT." required:""`
 	JWTFileName             string `env:"JWT_FILE_NAME" help:"Name of the file to write the JWT SVID to." required:""`
-	PodName                 string `env:"POD_NAME" help:"Name of the pod." required:""`
-	PodNamespace            string `env:"POD_NAMESPACE" help:"Namespace of the pod. required:"`
 	SpiffeAgentSocket       string `env:"SPIFFE_AGENT_SOCKET" help:"File name of the SPIFFE agent socket" required:""`
 	RefreshIntervalOverride int    `env:"REFRESH_INTERVAL_OVERRIDE" help:"Override the default refresh interval in seconds."`
 	Started                 bool
@@ -45,15 +40,13 @@ func (s *SpiffeJWT) run() {
 	// Initial fetch of the JWT SVID
 	jwt, err := s.fetchJWTSVID()
 	if err != nil {
-		logrus.WithError(err).Error("unable to fetch JWT SVID, deleting own pod")
-		s.deleteOwnPod()
+		logrus.WithError(err).Fatal("unable to fetch JWT SVID, shutting down")
 	}
 
 	// Write the JWT SVID to the configured file
 	err = s.writeJWTSVID(jwt)
 	if err != nil {
-		logrus.Error("since unable to write JWT SVID to file, deleting own pod")
-		s.deleteOwnPod()
+		logrus.WithError(err).Fatal("unable to write JWT SVID to file, shuting down")
 	}
 
 	// Indicate that spiffe-jwt-svid has received it's first JWT SVID (for start probe)
@@ -71,8 +64,7 @@ func (s *SpiffeJWT) run() {
 		case <-ticker.C:
 			jwt, err := s.fetchJWTSVID()
 			if err != nil {
-				logrus.WithError(err).Error("unable to fetch JWT SVID, deleting own pod")
-				s.deleteOwnPod()
+				logrus.WithError(err).Fatal("unable to fetch JWT SVID, shutting down")
 				return
 			}
 			intv := s.getRefreshInterval(jwt)
@@ -113,37 +105,6 @@ func (s *SpiffeJWT) writeJWTSVID(jwt *jwtsvid.SVID) error {
 	}
 	logrus.Infof("JWT SVID written to %s", s.JWTFileName)
 	return nil
-}
-
-// deleteOwnPod deletes the pod in which the agent is running. This is done to force the pod to be restarted by its controller.
-func (s *SpiffeJWT) deleteOwnPod() {
-	// Create an in-cluster configuration
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		logrus.Fatalf("Error creating in-cluster config: %v\n", err)
-	}
-
-	// Create the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		logrus.Fatalf("Error creating clientset: %v\n", err)
-	}
-
-	logrus.Infof("Attempting to delete pod %s/%s", s.PodNamespace, s.PodName)
-
-	// Delete the pod. If the pod is managed by a controller, it will be re-created.
-	deletePolicy := metav1.DeletePropagationForeground
-	err = clientset.CoreV1().Pods(s.PodNamespace).Delete(context.Background(), s.PodName, metav1.DeleteOptions{
-		PropagationPolicy: &deletePolicy,
-	})
-	if err != nil {
-		logrus.Fatalf("Error deleting pod: %v\n", err)
-	}
-
-	fmt.Printf("Pod %s/%s deletion initiated. The pod will be restarted by its controller.\n", s.PodNamespace, s.PodName)
-
-	// sleep for a while to give the controller time to restart the pod without restarting this container
-	time.Sleep(60 * time.Second)
 }
 
 // getRefreshInterval returns the refresh interval for the JWT SVID. If the refresh interval override is set, it is used.
