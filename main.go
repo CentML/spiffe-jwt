@@ -17,6 +17,7 @@ import (
 // fails to fetch the JWT SVID, it deletes its own pod in order to force the pod to be restarted by its
 // owner (e.g. a deployment controller).
 type SpiffeJWT struct {
+	DaemonMode              bool   `env:"DAEMON_MODE" help:"Run in daemon mode." default:"true"`
 	HealthPort              string `env:"HEALTH_PORT" help:"Port to listen for health checks." default:"8080"`
 	JWTAudience             string `env:"JWT_AUDIENCE" help:"Audience of the JWT." required:""`
 	JWTFileName             string `env:"JWT_FILE_NAME" help:"Name of the file to write the JWT SVID to." required:""`
@@ -29,24 +30,28 @@ func main() {
 
 	s := &SpiffeJWT{}
 	kong.Parse(s)
-	go s.run()
-	s.startHealthServer()
-
+	if s.DaemonMode {
+		logrus.Info("Running in daemon mode")
+		go s.run()
+		s.startHealthServer()
+	} else {
+		logrus.Info("Running in one-shot mode")
+		jwt, err := s.fetchAndWriteJWTSVID()
+		if err != nil {
+			logrus.WithError(err).Fatal("unable to fetch or write JWT SVID, shutting down")
+		}
+		logrus.Info("JWT SVID fetched and written, it expires in %s", time.Until(jwt.Expiry))
+	}
 }
 
 // run is the main loop of SpiffeJWT. It fetches a JWT SVID from the SPIFFE agent,
 // writes it to a file and refreshes it periodically.
 func (s *SpiffeJWT) run() {
-	// Initial fetch of the JWT SVID
-	jwt, err := s.fetchJWTSVID()
-	if err != nil {
-		logrus.WithError(err).Fatal("unable to fetch JWT SVID, shutting down")
-	}
 
-	// Write the JWT SVID to the configured file
-	err = s.writeJWTSVID(jwt)
+	jwt, err := s.fetchAndWriteJWTSVID()
 	if err != nil {
-		logrus.WithError(err).Fatal("unable to write JWT SVID to file, shuting down")
+		logrus.WithError(err).Fatal("unable to fetch or write JWT SVID, shutting down")
+		return
 	}
 
 	// Indicate that spiffe-jwt-svid has received it's first JWT SVID (for start probe)
@@ -62,16 +67,11 @@ func (s *SpiffeJWT) run() {
 		select {
 		// wait for the ticker to fire
 		case <-ticker.C:
-			jwt, err := s.fetchJWTSVID()
-			if err != nil {
-				logrus.WithError(err).Fatal("unable to fetch JWT SVID, shutting down")
-				return
-			}
 
-			// Write the JWT SVID to the configured file
-			err = s.writeJWTSVID(jwt)
+			jwt, err := s.fetchAndWriteJWTSVID()
 			if err != nil {
-				logrus.WithError(err).Fatal("unable to write JWT SVID to file, shuting down")
+				logrus.WithError(err).Fatal("unable to fetch or write JWT SVID, shutting down")
+				return
 			}
 
 			intv := s.getRefreshInterval(jwt)
@@ -79,6 +79,26 @@ func (s *SpiffeJWT) run() {
 			ticker.Reset(intv)
 		}
 	}
+}
+
+// fetchAndWriteJWTSVID fetches a JWT SVID from the SPIFFE agent and writes it to a file
+func (s *SpiffeJWT) fetchAndWriteJWTSVID() (*jwtsvid.SVID, error) {
+	// Initial fetch of the JWT SVID
+	jwt, err := s.fetchJWTSVID()
+	if err != nil {
+		logrus.WithError(err).Error("unable to fetch JWT SVID, shutting down")
+		return nil, err
+	}
+
+	// Write the JWT SVID to the configured file
+	err = s.writeJWTSVID(jwt)
+	if err != nil {
+		logrus.WithError(err).Error("unable to write JWT SVID to file, shuting down")
+		return nil, err
+	}
+
+	return jwt, nil
+
 }
 
 // fetchJWTSVID fetches a JWT SVID from the SPIFFE agent
@@ -105,6 +125,7 @@ func (s *SpiffeJWT) fetchJWTSVID() (*jwtsvid.SVID, error) {
 	return jwt, nil
 }
 
+// writeJWTSVID writes a JWT SVID to a file
 func (s *SpiffeJWT) writeJWTSVID(jwt *jwtsvid.SVID) error {
 	err := os.WriteFile(s.JWTFileName, []byte(jwt.Marshal()), 0644)
 	if err != nil {
