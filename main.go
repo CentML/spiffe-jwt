@@ -67,6 +67,13 @@ func (s *SpiffeJWT) run() {
 				logrus.WithError(err).Fatal("unable to fetch JWT SVID, shutting down")
 				return
 			}
+
+			// Write the JWT SVID to the configured file
+			err = s.writeJWTSVID(jwt)
+			if err != nil {
+				logrus.WithError(err).Fatal("unable to write JWT SVID to file, shuting down")
+			}
+
 			intv := s.getRefreshInterval(jwt)
 			logrus.Infof("JWT SVID will be refreshed in %s", intv)
 			ticker.Reset(intv)
