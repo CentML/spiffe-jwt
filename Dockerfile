@@ -5,9 +5,6 @@ ARG go_version=1.23
 FROM --platform=$BUILDPLATFORM golang:${go_version}-alpine AS base
 WORKDIR /workspace
 
-# Use tini as the entrypoint so signals get passed for quick shutdowns
-RUN apk add --no-cache tini
-
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
@@ -28,7 +25,8 @@ WORKDIR /
 # Install binary
 COPY --from=base /workspace/spiffe-jwt .
 
-USER 65532:65532
+# Use tini as the entrypoint so signals get passed for quick shutdowns
+RUN apk add --no-cache tini
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/spiffe-jwt"]
