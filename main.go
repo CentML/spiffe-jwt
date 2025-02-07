@@ -131,5 +131,5 @@ func (s *SpiffeJWT) startHealthServer() {
 		}
 	})
 	logrus.Infof("Starting health server on port %s", s.HealthPort)
-	http.ListenAndServe(":8080", mux)
+	http.ListenAndServe(fmt.Sprintf(":%s", s.HealthPort), mux)
 }
