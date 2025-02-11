@@ -17,13 +17,13 @@ import (
 // SpiffeJWT periodically refreshes a JWT SVID from the SPIFFE agent and writes it to a file.
 // If it fails to fetch the JWT SVID, it will log an error and exit.
 type SpiffeJWT struct {
-	DaemonMode            bool          `env:"DAEMON_MODE" help:"Run in daemon mode." default:"true"`
-	HealthPort            string        `env:"HEALTH_PORT" help:"Port to listen for health checks." default:"8080"`
-	JWTAudience          string        `env:"JWT_AUDIENCE" help:"Audience of the JWT." required:""`
-	JWTFileName          string        `env:"JWT_FILE_NAME" help:"Name of the file to write the JWT SVID to." required:""`
-	SpiffeAgentSocket    string        `env:"SPIFFE_AGENT_SOCKET" help:"File name of the SPIFFE agent socket" required:""`
+	DaemonMode              bool          `env:"DAEMON_MODE" help:"Run in daemon mode." default:"true"`
+	HealthPort              string        `env:"HEALTH_PORT" help:"Port to listen for health checks." default:"8080"`
+	JWTAudience             string        `env:"JWT_AUDIENCE" help:"Audience of the JWT." required:""`
+	JWTFileName             string        `env:"JWT_FILE_NAME" help:"Name of the file to write the JWT SVID to." required:""`
+	SpiffeAgentSocket       string        `env:"SPIFFE_AGENT_SOCKET" help:"File name of the SPIFFE agent socket" required:""`
 	RefreshIntervalOverride time.Duration `env:"REFRESH_INTERVAL_OVERRIDE" help:"Override the default refresh interval (e.g., 30s, 5m)."`
-	
+
 	// Atomic flag to track if initial JWT has been fetched
 	started int32 // 0 = false, 1 = true
 }
@@ -31,7 +31,7 @@ type SpiffeJWT struct {
 func main() {
 	s := &SpiffeJWT{}
 	kong.Parse(s)
-	
+
 	if s.DaemonMode {
 		logrus.Info("Running in daemon mode")
 		go s.run()
@@ -70,7 +70,7 @@ func (s *SpiffeJWT) run() {
 			if err != nil {
 				logrus.WithError(err).Fatal("unable to fetch or write JWT SVID, shutting down")
 			}
-			
+
 			// Update refresh interval based on new token expiry
 			intv := s.getRefreshInterval(jwt)
 			logrus.Infof("JWT SVID will be refreshed in %s", intv)
@@ -96,9 +96,9 @@ func (s *SpiffeJWT) fetchAndWriteJWTSVID() (*jwtsvid.SVID, error) {
 // fetchJWTSVID fetches a JWT SVID from the SPIFFE agent
 func (s *SpiffeJWT) fetchJWTSVID() (*jwtsvid.SVID, error) {
 	ctx := context.Background()
-	
+
 	// Create connection to SPIFFE agent
-	jwtSource, err := workloadapi.NewJWTSource(ctx, 
+	jwtSource, err := workloadapi.NewJWTSource(ctx,
 		workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+s.SpiffeAgentSocket)),
 	)
 	if err != nil {
@@ -112,13 +112,13 @@ func (s *SpiffeJWT) fetchJWTSVID() (*jwtsvid.SVID, error) {
 		return nil, fmt.Errorf("unable to fetch JWT SVID: %w", err)
 	}
 	logrus.Info("JWT SVID fetched and validated")
-	
+
 	return jwt, nil
 }
 
 // writeJWTSVID writes a JWT SVID to a file with secure permissions
 func (s *SpiffeJWT) writeJWTSVID(jwt *jwtsvid.SVID) error {
-	err := os.WriteFile(s.JWTFileName, []byte(jwt.Marshal()), 0600)
+	err := os.WriteFile(s.JWTFileName, []byte(jwt.Marshal()), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write JWT file: %w", err)
 	}
@@ -150,7 +150,7 @@ func (s *SpiffeJWT) getRefreshInterval(svid *jwtsvid.SVID) time.Duration {
 	if intv < time.Second {
 		intv = time.Second // Minimum refresh interval
 	}
-	
+
 	return intv
 }
 
