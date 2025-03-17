@@ -13,7 +13,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/alecthomas/kong v1.7.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/net v0.36.0 // indirect
