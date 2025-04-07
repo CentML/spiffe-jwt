@@ -105,6 +105,7 @@ func (s *SpiffeJWT) fetchJWTSVID() (*jwtsvid.SVID, error) {
 		return nil, fmt.Errorf("failed to create JWT source: %w", err)
 	}
 	logrus.Info("JWT source created")
+	defer jwtSource.Close()
 
 	// Fetch validated JWT SVID
 	jwt, err := jwtSource.FetchJWTSVID(ctx, jwtsvid.Params{Audience: s.JWTAudience})
