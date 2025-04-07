@@ -95,7 +95,8 @@ func (s *SpiffeJWT) fetchAndWriteJWTSVID() (*jwtsvid.SVID, error) {
 
 // fetchJWTSVID fetches a JWT SVID from the SPIFFE agent
 func (s *SpiffeJWT) fetchJWTSVID() (*jwtsvid.SVID, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	// Create connection to SPIFFE agent
 	jwtSource, err := workloadapi.NewJWTSource(ctx,
