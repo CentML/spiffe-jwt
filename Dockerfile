@@ -19,14 +19,13 @@ COPY main.go main.go
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${BUILDPLATFORM} go build -a -o spiffe-jwt ./main.go
 
-FROM alpine:latest
+# OSRB-approved base; CGO_ENABLED=0 binary needs no libc. Runs as non-root uid 1000.
+FROM nvcr.io/nvidia/distroless/static:v4.0.0
 WORKDIR /
 
 # Install binary
 COPY --from=base /workspace/spiffe-jwt .
 
-# Use tini as the entrypoint so signals get passed for quick shutdowns
-RUN apk add --no-cache tini
-
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/spiffe-jwt"]
+# tini dropped: it reaped zombies (this binary spawns none) and worked around
+# PID 1 ignoring SIGTERM (the Go runtime installs its own handler).
+ENTRYPOINT ["/spiffe-jwt"]
