@@ -1,5 +1,6 @@
-# Set default go_version to 1.23
-ARG go_version=1.23
+# Set default go_version to 1.25 (must satisfy the `go` directive in go.mod;
+# the golang images set GOTOOLCHAIN=local, so Go will not auto-fetch a newer one)
+ARG go_version=1.25
 
 # Build the spiffe-helper binary
 FROM --platform=$BUILDPLATFORM golang:${go_version}-alpine AS base
