@@ -11,13 +11,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
+
+      # The classic image store holds one arch per tag; containerd is needed
+      # for `load: true` to accept a multi-arch build.
+      - name: Enable containerd image store
+        run: |
+          sudo mkdir -p /etc/docker
+          echo '{"features":{"containerd-snapshotter":true}}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -29,15 +37,32 @@ jobs:
           # Convert the repository owner to lowercase and save it as an output variable.
           echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
-      - name: Build and Push Docker Image
-        uses: docker/build-push-action@v4
+      # Must run before the NGC login: a scoped NGC key 403s outside its own
+      # namespace rather than falling back to anonymous, breaking the base pull.
+      - name: Build Docker Image
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
-          push: true
+          push: false
+          load: true
           platforms: linux/amd64,linux/arm64
           # Tag the image using the lowercased owner and repository name.
-          tags: ghcr.io/${{ steps.owner.outputs.owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
+            nvcr.io/0808839837694695/spiffe-jwt:${{ github.ref_name }}
+
+      - name: Login to NGC Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: nvcr.io
+          username: $oauthtoken
+          password: ${{ secrets.NGC_API_SECRET }}
+
+      - name: Push Images
+        run: |
+          docker push ghcr.io/${{ steps.owner.outputs.owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
+          docker push nvcr.io/0808839837694695/spiffe-jwt:${{ github.ref_name }}
 
   create_release:
     name: Create GitHub Release
