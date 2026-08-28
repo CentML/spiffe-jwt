@@ -51,6 +51,7 @@ jobs:
           tags: |
             ghcr.io/${{ steps.owner.outputs.owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
             nvcr.io/0808839837694695/spiffe-jwt:${{ github.ref_name }}
+            nvcr.io/0808839837694695/spiffe-jwt:latest
 
       - name: Login to NGC Container Registry
         uses: docker/login-action@v4
@@ -63,6 +64,7 @@ jobs:
         run: |
           docker push ghcr.io/${{ steps.owner.outputs.owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
           docker push nvcr.io/0808839837694695/spiffe-jwt:${{ github.ref_name }}
+          docker push nvcr.io/0808839837694695/spiffe-jwt:latest
 
   create_release:
     name: Create GitHub Release
