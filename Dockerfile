@@ -22,12 +22,20 @@ COPY main.go main.go
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${BUILDPLATFORM} go build -a -o spiffe-jwt ./main.go
 
+# Third-party source for the notices in THIRD-PARTY.txt: vendor the exact module set
+# that was just compiled and pack it (see /usr/share/oss-source in the final stage)
+RUN go mod vendor && tar -czf /workspace/third-party-src.tar.gz -C /workspace vendor
+
 # OSRB-approved base; CGO_ENABLED=0 binary needs no libc. Runs as non-root uid 1000.
 FROM nvcr.io/nvidia/distroless/static:v4.0.0
 WORKDIR /
 
 # Install binary
 COPY --from=base /workspace/spiffe-jwt .
+
+# Third-party notices and the corresponding source (license compliance; MPL-2.0 §3.2)
+COPY THIRD-PARTY.txt /THIRD-PARTY.txt
+COPY --from=base /workspace/third-party-src.tar.gz /usr/share/oss-source/third-party-src.tar.gz
 
 # tini dropped: it reaped zombies (this binary spawns none) and worked around
 # PID 1 ignoring SIGTERM (the Go runtime installs its own handler).
