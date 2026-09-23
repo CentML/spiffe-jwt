@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 # Set default go_version to 1.26.7 (must satisfy the `go` directive in go.mod;
 # the golang images set GOTOOLCHAIN=local, so Go will not auto-fetch a newer one)
 ARG go_version=1.26.7
